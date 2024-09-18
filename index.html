@@ -41,35 +41,21 @@
         <h2>Nouvelle activité</h2>
 
         <label for="activity-name">Nom de l'activité :</label>
-        <input type="text" id="activity-name" />
+        <!-- Menu déroulant pour réutiliser les noms d'activités -->
+        <select id="activity-name">
+          <option value="" disabled selected>Choisissez ou entrez un nom</option>
+        </select>
+        <input type="text" id="new-activity-name" placeholder="Nouveau nom d'activité" />
 
         <label>Jours :</label>
         <div id="activity-days">
-          <input type="checkbox" id="lundi" value="lundi" /><label for="lundi"
-            >Lundi</label
-          >
-          <input type="checkbox" id="mardi" value="mardi" /><label for="mardi"
-            >Mardi</label
-          >
-          <input type="checkbox" id="mercredi" value="mercredi" /><label
-            for="mercredi"
-            >Mercredi</label
-          >
-          <input type="checkbox" id="jeudi" value="jeudi" /><label for="jeudi"
-            >Jeudi</label
-          >
-          <input type="checkbox" id="vendredi" value="vendredi" /><label
-            for="vendredi"
-            >Vendredi</label
-          >
-          <input type="checkbox" id="samedi" value="samedi" /><label
-            for="samedi"
-            >Samedi</label
-          >
-          <input type="checkbox" id="dimanche" value="dimanche" /><label
-            for="dimanche"
-            >Dimanche</label
-          >
+          <input type="checkbox" id="lundi" value="lundi" /><label for="lundi">Lundi</label>
+          <input type="checkbox" id="mardi" value="mardi" /><label for="mardi">Mardi</label>
+          <input type="checkbox" id="mercredi" value="mercredi" /><label for="mercredi">Mercredi</label>
+          <input type="checkbox" id="jeudi" value="jeudi" /><label for="jeudi">Jeudi</label>
+          <input type="checkbox" id="vendredi" value="vendredi" /><label for="vendredi">Vendredi</label>
+          <input type="checkbox" id="samedi" value="samedi" /><label for="samedi">Samedi</label>
+          <input type="checkbox" id="dimanche" value="dimanche" /><label for="dimanche">Dimanche</label>
         </div>
 
         <label for="activity-time-start">Heure de début :</label>

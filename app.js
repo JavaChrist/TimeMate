@@ -1,5 +1,5 @@
-// Stockage des activités par jour
-const activitiesByDay = {
+// Stockage des activités par jour (chargement depuis le LocalStorage si existant)
+let activitiesByDay = {
   lundi: [],
   mardi: [],
   mercredi: [],
@@ -8,6 +8,31 @@ const activitiesByDay = {
   samedi: [],
   dimanche: []
 };
+
+// Stockage des noms d'activités réutilisables
+let activityNames = [];
+
+if (localStorage.getItem('activities')) {
+  activitiesByDay = JSON.parse(localStorage.getItem('activities'));
+  Object.keys(activitiesByDay).forEach(day => displayActivitiesForDay(day));
+}
+
+if (localStorage.getItem('activityNames')) {
+  activityNames = JSON.parse(localStorage.getItem('activityNames'));
+  populateActivityNames();
+}
+
+// Fonction pour ajouter les noms d'activités dans le menu déroulant
+function populateActivityNames() {
+  const select = document.getElementById('activity-name');
+  select.innerHTML = `<option value="" disabled selected>Choisissez ou entrez un nom</option>`;
+  activityNames.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+}
 
 // Fonction pour vérifier si une activité chevauche une autre
 function hasOverlap(day, startTime, endTime, excludeActivity = null) {
@@ -34,54 +59,14 @@ window.onclick = function (event) {
   }
 };
 
-// Fonction pour obtenir le numéro de la semaine
-function getWeekNumber(d) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-}
-
-// Fonction pour générer les dates de la semaine courante
-function getWeekDates() {
-  const currentDate = new Date();
-  const currentDay = currentDate.getDay() || 7; // Lundi = 1, Dimanche = 7
-  const monday = new Date(currentDate);
-  monday.setDate(currentDate.getDate() - currentDay + 1);
-
-  const weekDates = [];
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(monday);
-    day.setDate(monday.getDate() + i);
-    weekDates.push(day);
-  }
-  return weekDates;
-}
-
-// Affichage des jours avec date et numéro de semaine
-function displayWeek() {
-  const weekDates = getWeekDates();
-  const weekNumber = getWeekNumber(new Date());
-
-  // Affichage du numéro de semaine
-  document.getElementById('week-number').textContent = `Semaine ${weekNumber}`;
-
-  // Affichage des dates dans le calendrier
-  document.querySelectorAll('.calendar-header div').forEach((header, index) => {
-    const date = weekDates[index];
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    header.textContent = `${header.textContent.split(' ')[0]} ${day}/${month}`;
-  });
-}
-
-// Appeler la fonction pour afficher la semaine au chargement
-displayWeek();
-
 // Sauvegarde d'une activité avec gestion de la couleur et ajout du tri par heure de début
 document.getElementById('save-event').onclick = function () {
-  const activityName = document.getElementById('activity-name').value;
+  const select = document.getElementById('activity-name');
+  const newActivityName = document.getElementById('new-activity-name').value;
+
+  // Si l'utilisateur a saisi un nouveau nom, on le prend, sinon on prend celui du menu déroulant
+  const activityName = newActivityName !== '' ? newActivityName : select.value;
+
   const activityStartTime = document.getElementById('activity-time-start').value;
   const activityEndTime = document.getElementById('activity-time-end').value;
   const activityColor = document.getElementById('activity-color').value;
@@ -103,6 +88,13 @@ document.getElementById('save-event').onclick = function () {
 
     // Si aucun chevauchement n'est détecté, ajouter l'activité
     if (!overlapDetected) {
+      // Si l'activité est nouvelle, ajouter le nom dans le menu déroulant
+      if (newActivityName && !activityNames.includes(newActivityName)) {
+        activityNames.push(newActivityName);
+        localStorage.setItem('activityNames', JSON.stringify(activityNames));
+        populateActivityNames();
+      }
+
       selectedDays.forEach(day => {
         // Ajouter l'activité dans le tableau correspondant au jour
         activitiesByDay[day].push({
@@ -121,8 +113,11 @@ document.getElementById('save-event').onclick = function () {
         displayActivitiesForDay(day);
       });
 
+      // Sauvegarder dans le LocalStorage
+      localStorage.setItem('activities', JSON.stringify(activitiesByDay));
+
       // Vider les champs après l'enregistrement
-      document.getElementById('activity-name').value = '';
+      document.getElementById('new-activity-name').value = ''; // Réinitialiser le champ de nouveau nom
       document.getElementById('activity-time-start').value = '';
       document.getElementById('activity-time-end').value = '';
       document.querySelectorAll('#activity-days input').forEach(input => input.checked = false);
@@ -177,6 +172,9 @@ document.querySelectorAll('.day').forEach(dayElement => {
       displayActivitiesForDay(draggedDay);
       displayActivitiesForDay(day);
 
+      // Sauvegarder dans le LocalStorage après le drag-and-drop
+      localStorage.setItem('activities', JSON.stringify(activitiesByDay));
+
       // Réinitialiser le drag
       draggedActivity = null;
       draggedDay = null;
@@ -204,3 +202,48 @@ function displayActivitiesForDay(day) {
     dayElement.appendChild(activityDiv);
   });
 }
+
+// Fonction pour obtenir le numéro de la semaine
+function getWeekNumber(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+}
+
+// Fonction pour générer les dates de la semaine courante
+function getWeekDates() {
+  const currentDate = new Date();
+  const currentDay = currentDate.getDay() || 7; // Lundi = 1, Dimanche = 7
+  const monday = new Date(currentDate);
+  monday.setDate(currentDate.getDate() - currentDay + 1);
+
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    weekDates.push(day);
+  }
+  return weekDates;
+}
+
+// Affichage des jours avec date et numéro de semaine
+function displayWeek() {
+  const weekDates = getWeekDates();
+  const weekNumber = getWeekNumber(new Date());
+
+  // Affichage du numéro de semaine
+  document.getElementById('week-number').textContent = `Semaine ${weekNumber}`;
+
+  // Affichage des dates dans le calendrier
+  document.querySelectorAll('.calendar-header div').forEach((header, index) => {
+    const date = weekDates[index];
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    header.textContent = `${header.textContent.split(' ')[0]} ${day}/${month}`;
+  });
+}
+
+// Appeler la fonction pour afficher la semaine au chargement
+displayWeek();
