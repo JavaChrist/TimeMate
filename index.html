@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TimeMate - Calendrier Hebdomadaire</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Affichage du numéro de semaine -->
+    <div id="week-number" class="week-number"></div>
+
+    <div class="calendar-container">
+      <div class="calendar-header">
+        <div>Lundi</div>
+        <div>Mardi</div>
+        <div>Mercredi</div>
+        <div>Jeudi</div>
+        <div>Vendredi</div>
+        <div>Samedi</div>
+        <div>Dimanche</div>
+      </div>
+      <div class="calendar-body">
+        <div class="day" data-day="lundi"></div>
+        <div class="day" data-day="mardi"></div>
+        <div class="day" data-day="mercredi"></div>
+        <div class="day" data-day="jeudi"></div>
+        <div class="day" data-day="vendredi"></div>
+        <div class="day" data-day="samedi"></div>
+        <div class="day" data-day="dimanche"></div>
+      </div>
+    </div>
+
+    <!-- Bouton pour ajouter des activités -->
+    <button id="add-event">Ajouter une activité</button>
+
+    <!-- Modale pour entrer les détails de l'activité -->
+    <div id="modal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Nouvelle activité</h2>
+
+        <label for="activity-name">Nom de l'activité :</label>
+        <input type="text" id="activity-name" />
+
+        <label>Jours :</label>
+        <div id="activity-days">
+          <input type="checkbox" id="lundi" value="lundi" /><label for="lundi"
+            >Lundi</label
+          >
+          <input type="checkbox" id="mardi" value="mardi" /><label for="mardi"
+            >Mardi</label
+          >
+          <input type="checkbox" id="mercredi" value="mercredi" /><label
+            for="mercredi"
+            >Mercredi</label
+          >
+          <input type="checkbox" id="jeudi" value="jeudi" /><label for="jeudi"
+            >Jeudi</label
+          >
+          <input type="checkbox" id="vendredi" value="vendredi" /><label
+            for="vendredi"
+            >Vendredi</label
+          >
+          <input type="checkbox" id="samedi" value="samedi" /><label
+            for="samedi"
+            >Samedi</label
+          >
+          <input type="checkbox" id="dimanche" value="dimanche" /><label
+            for="dimanche"
+            >Dimanche</label
+          >
+        </div>
+
+        <label for="activity-time-start">Heure de début :</label>
+        <input type="time" id="activity-time-start" />
+        <label for="activity-time-end">Heure de fin :</label>
+        <input type="time" id="activity-time-end" />
+
+        <label for="activity-color">Couleur :</label>
+        <select id="activity-color">
+          <option value="#FF6347">Rouge</option>
+          <option value="#32CD32">Vert</option>
+          <option value="#1E90FF">Bleu</option>
+          <option value="#FFD700">Jaune</option>
+          <option value="#FF69B4">Rose</option>
+          <option value="#8A2BE2">Violet</option>
+          <option value="#00CED1">Turquoise</option>
+          <option value="#A52A2A">Marron</option>
+          <option value="#D2691E">Orange</option>
+          <option value="#696969">Gris</option>
+        </select>
+
+        <button id="save-event">Enregistrer</button>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
