@@ -28,9 +28,11 @@ activityLogs.forEach(log => {
 
   // Temps réel passé
   const timeSpentCell = document.createElement('td');
+  timeSpentCell.id = `time-spent-${log.name}`;
   timeSpentCell.textContent = formatTime(log.timeSpent);
   row.appendChild(timeSpentCell);
 
   // Ajouter la ligne au tableau
   activitiesLogTable.appendChild(row);
 });
+

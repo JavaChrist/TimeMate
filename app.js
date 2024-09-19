@@ -5,6 +5,7 @@ let activityLogs = JSON.parse(localStorage.getItem('activityLogs')) || [];
 let timerInterval;
 let timeRemaining;
 let currentWeekOffset = 0; // Par défaut, affiche la semaine courante
+let activeTimer = JSON.parse(localStorage.getItem('activeTimer')) || null; // Timer actif stocké
 
 // Population des activités existantes dans le menu déroulant
 function populateActivityNames() {
@@ -34,6 +35,30 @@ window.onclick = function (event) {
   }
 };
 
+// Fonction pour vérifier les chevauchements d'activités
+function hasTimeConflict(date, newStartTime, newEndTime) {
+  if (!activitiesByDate[date]) {
+    return false;
+  }
+
+  const [newStartHour, newStartMinute] = newStartTime.split(':').map(Number);
+  const [newEndHour, newEndMinute] = newEndTime.split(':').map(Number);
+
+  const newStart = newStartHour * 60 + newStartMinute; // Convertir en minutes depuis minuit
+  const newEnd = newEndHour * 60 + newEndMinute;
+
+  return activitiesByDate[date].some(activity => {
+    const [existingStartHour, existingStartMinute] = activity.startTime.split(':').map(Number);
+    const [existingEndHour, existingEndMinute] = activity.endTime.split(':').map(Number);
+
+    const existingStart = existingStartHour * 60 + existingStartMinute;
+    const existingEnd = existingEndHour * 60 + existingEndMinute;
+
+    // Vérifier les chevauchements : si l'un commence avant que l'autre ne finisse
+    return (newStart < existingEnd && newEnd > existingStart);
+  });
+}
+
 // Sauvegarde d'une activité avec gestion de la couleur et des dates
 document.getElementById('save-event').onclick = function () {
   const activityName = document.getElementById('new-activity-name').value.trim();
@@ -52,16 +77,31 @@ document.getElementById('save-event').onclick = function () {
     return;
   }
 
-  // Ajout d'un nouveau nom d'activité à la liste
+  // Vérification des conflits d'activités sur chaque jour
+  const startDate = new Date(activityStartDate);
+  const endDate = new Date(activityEndDate);
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const formattedDate = currentDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+    if (hasTimeConflict(formattedDate, activityStartTime, activityEndTime)) {
+      alert(`Il y a déjà une activité prévue pour le créneau ${activityStartTime} - ${activityEndTime} à la date ${formattedDate}.`);
+      return;
+    }
+
+    // Avancer d'un jour
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  // Ajout d'un nouveau nom d'activité à la liste des noms disponibles
   if (activityName && !activityNames.includes(activityName)) {
     activityNames.push(activityName);
     localStorage.setItem('activityNames', JSON.stringify(activityNames));
   }
 
-  const startDate = new Date(activityStartDate);
-  const endDate = new Date(activityEndDate);
-  let currentDate = new Date(startDate);
-
+  // Sauvegarde des activités sur chaque jour entre la date de début et de fin
+  currentDate = new Date(startDate);
   while (currentDate <= endDate) {
     const formattedDate = currentDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
 
@@ -76,11 +116,27 @@ document.getElementById('save-event').onclick = function () {
       color: activityColor
     });
 
+    // Calculer la durée programmée en millisecondes
+    const [startHour, startMinute] = activityStartTime.split(':').map(Number);
+    const [endHour, endMinute] = activityEndTime.split(':').map(Number);
+    const originalDuration = ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) * 60 * 1000;
+
+    // Ajouter à activityLogs avec timeSpent initialisé à 0
+    activityLogs.push({
+      name: finalActivityName,
+      date: formattedDate,
+      startTime: activityStartTime,
+      endTime: activityEndTime,
+      originalDuration: originalDuration,
+      timeSpent: 0
+    });
+
     // Avancer d'un jour
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   localStorage.setItem('activitiesByDate', JSON.stringify(activitiesByDate));
+  localStorage.setItem('activityLogs', JSON.stringify(activityLogs));
 
   // Vider les champs après l'enregistrement
   document.getElementById('new-activity-name').value = '';
@@ -166,15 +222,20 @@ function getWeekDates(weekOffset = 0) {
 }
 
 // Gestion du Timer avec pause et reprise
+let isPaused = false;
+let pausedTimeRemaining = 0;
+
+// Fonction pour démarrer un timer (avec stockage pour reprise)
 function startTimer(activity, date, index) {
   clearInterval(timerInterval);
+  isPaused = false; // Réinitialiser la pause
 
   const now = new Date(); // Heure actuelle
   const startTime = new Date(); // Début réel de l'activité
   const endTime = new Date(); // Fin de l'activité
 
   const [startHour, startMinute] = activity.startTime.split(':');
-  const [endHour, endMinute] = activity.endTime.split(':');
+  const [endHour, endMinute] = activity.endTime.split(':').map(Number);
 
   startTime.setHours(parseInt(startHour), parseInt(startMinute), 0, 0);
   endTime.setHours(parseInt(endHour), parseInt(endMinute), 0, 0);
@@ -195,32 +256,49 @@ function startTimer(activity, date, index) {
   const actualStartTime = new Date(); // Moment où l'utilisateur commence l'activité
 
   showTimer(timeRemaining);
+  localStorage.setItem('activeTimer', JSON.stringify({ activity, date, index, timeRemaining, originalDuration }));
 
   timerInterval = setInterval(() => {
-    timeRemaining -= 1000;
+    if (!isPaused) {
+      timeRemaining -= 1000;
 
-    if (timeRemaining <= 0) {
-      clearInterval(timerInterval);
-      const actualEndTime = new Date();
-      const timeSpent = actualEndTime - actualStartTime; // Temps réellement passé
+      if (timeRemaining <= 0) {
+        clearInterval(timerInterval);
+        const actualEndTime = new Date();
+        const timeSpent = actualEndTime - actualStartTime; // Temps réellement passé
 
-      // Sauvegarde dans le tableau des logs
-      activityLogs.push({
-        name: activity.name,
-        originalDuration: originalDuration,
-        timeSpent: timeSpent
-      });
+        // Sauvegarder l'activité terminée
+        const logIndex = activityLogs.findIndex(log =>
+          log.name === activity.name &&
+          log.date === date &&
+          log.startTime === activity.startTime &&
+          log.endTime === activity.endTime &&
+          log.timeSpent === 0
+        );
 
-      // Met à jour le LocalStorage
-      localStorage.setItem('activityLogs', JSON.stringify(activityLogs));
+        if (logIndex !== -1) {
+          activityLogs[logIndex].timeSpent = timeSpent;
+          localStorage.setItem('activityLogs', JSON.stringify(activityLogs));
+        }
 
-      alert(`L'activité "${activity.name}" est terminée !`);
-      playSound();
-      deleteActivity(date, index);
-    } else {
-      showTimer(timeRemaining);
+        alert(`L'activité "${activity.name}" est terminée !`);
+        playSound();
+        deleteActivity(date, index);
+      } else {
+        showTimer(timeRemaining);
+      }
     }
   }, 1000);
+}
+
+// Fonction pour restaurer le timer actif
+function restoreActiveTimer() {
+  if (activeTimer) {
+    const { activity, date, index, timeRemaining: remaining } = activeTimer;
+    timeRemaining = remaining;
+    showTimer(timeRemaining);
+    startTimer(activity, date, index);
+  }
 }
 
 // Fonction pour afficher le timer
@@ -237,12 +315,80 @@ function showTimer(timeRemaining) {
   const minutes = Math.floor((timeRemaining / (1000 * 60)) % 60);
   const seconds = Math.floor((timeRemaining / 1000) % 60);
   document.getElementById('timer-display').textContent = `${hours}h ${minutes}m ${seconds}s`;
+
+  // Ajouter les boutons Pause et Reprendre
+  addTimerButtons();
+}
+
+// Fonction pour ajouter les boutons pause/reprise
+function addTimerButtons() {
+  let pauseButton = document.getElementById('pause-timer');
+  if (!pauseButton) {
+    pauseButton = document.createElement('button');
+    pauseButton.id = 'pause-timer';
+    pauseButton.textContent = 'Pause';
+    pauseButton.onclick = pauseTimer;
+    document.body.appendChild(pauseButton);
+  }
+
+  let resumeButton = document.getElementById('resume-timer');
+  if (!resumeButton) {
+    resumeButton = document.createElement('button');
+    resumeButton.id = 'resume-timer';
+    resumeButton.textContent = 'Reprendre';
+    resumeButton.style.display = 'none'; // Cacher par défaut
+    resumeButton.onclick = resumeTimer;
+    document.body.appendChild(resumeButton);
+  }
+}
+
+// Fonction pour mettre le timer en pause
+function pauseTimer() {
+  isPaused = true;
+  pausedTimeRemaining = timeRemaining;
+  clearInterval(timerInterval);
+  document.getElementById('pause-timer').style.display = 'none';
+  document.getElementById('resume-timer').style.display = 'inline-block';
+}
+
+// Fonction pour reprendre le timer après pause
+function resumeTimer() {
+  isPaused = false;
+  timeRemaining = pausedTimeRemaining;
+  showTimer(timeRemaining);
+  timerInterval = setInterval(() => {
+    if (!isPaused) {
+      timeRemaining -= 1000;
+
+      if (timeRemaining <= 0) {
+        clearInterval(timerInterval);
+        alert("L'activité est terminée !");
+        // Vous pouvez ajouter une logique similaire à startTimer ici si nécessaire
+      } else {
+        showTimer(timeRemaining);
+      }
+    }
+  }, 1000);
 }
 
 // Fonction pour supprimer une activité
 function deleteActivity(date, index) {
-  activitiesByDate[date].splice(index, 1);
+  const removedActivity = activitiesByDate[date].splice(index, 1)[0];
   localStorage.setItem('activitiesByDate', JSON.stringify(activitiesByDate));
+
+  // Supprimer le log correspondant
+  const logIndex = activityLogs.findIndex(log =>
+    log.name === removedActivity.name &&
+    log.date === date &&
+    log.startTime === removedActivity.startTime &&
+    log.endTime === removedActivity.endTime
+  );
+
+  if (logIndex !== -1) {
+    activityLogs.splice(logIndex, 1);
+    localStorage.setItem('activityLogs', JSON.stringify(activityLogs));
+  }
+
   displayWeek(currentWeekOffset); // Actualise l'affichage après suppression
 }
 
@@ -269,6 +415,7 @@ function getWeekNumber(date, weekOffset = 0) {
 // Initialiser l'affichage de la semaine courante
 displayWeekNumber(currentWeekOffset);
 displayWeek(currentWeekOffset);
+restoreActiveTimer(); // Restaurer le timer actif après le chargement de la page
 
 // Navigation entre semaines
 document.getElementById('next-week').addEventListener('click', () => {
@@ -282,3 +429,4 @@ document.getElementById('previous-week').addEventListener('click', () => {
   displayWeek(currentWeekOffset); // Affiche la semaine précédente
   displayWeekNumber(currentWeekOffset); // Met à jour le numéro de semaine
 });
+
