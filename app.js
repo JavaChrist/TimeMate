@@ -1,30 +1,14 @@
-// Stockage des activités par jour (chargement depuis le LocalStorage si existant)
-let activitiesByDay = {
-  lundi: [],
-  mardi: [],
-  mercredi: [],
-  jeudi: [],
-  vendredi: [],
-  samedi: [],
-  dimanche: []
-};
+// Stockage des activités par date (chargement depuis le LocalStorage si existant)
+let activitiesByDate = JSON.parse(localStorage.getItem('activitiesByDate')) || {};
+let activityNames = JSON.parse(localStorage.getItem('activityNames')) || [];
+let activityLogs = JSON.parse(localStorage.getItem('activityLogs')) || [];
+let timerInterval;
+let timeRemaining;
+let currentWeekOffset = 0; // Par défaut, affiche la semaine courante
 
-// Stockage des noms d'activités réutilisables
-let activityNames = [];
-
-if (localStorage.getItem('activities')) {
-  activitiesByDay = JSON.parse(localStorage.getItem('activities'));
-  Object.keys(activitiesByDay).forEach(day => displayActivitiesForDay(day));
-}
-
-if (localStorage.getItem('activityNames')) {
-  activityNames = JSON.parse(localStorage.getItem('activityNames'));
-  populateActivityNames();
-}
-
-// Fonction pour ajouter les noms d'activités dans le menu déroulant
+// Population des activités existantes dans le menu déroulant
 function populateActivityNames() {
-  const select = document.getElementById('activity-name');
+  const select = document.getElementById('activity-name-existing');
   select.innerHTML = `<option value="" disabled selected>Choisissez ou entrez un nom</option>`;
   activityNames.forEach(name => {
     const option = document.createElement('option');
@@ -34,190 +18,143 @@ function populateActivityNames() {
   });
 }
 
-// Fonction pour vérifier si une activité chevauche une autre
-function hasOverlap(day, startTime, endTime, excludeActivity = null) {
-  return activitiesByDay[day].some(activity => {
-    if (excludeActivity && activity === excludeActivity) return false; // Ignorer l'activité en cours de déplacement
-    return (startTime < activity.endTime && endTime > activity.startTime);
-  });
-}
-
-// Gestion de l'affichage de la modale pour ajouter une activité
+// Affichage de la modale
 document.getElementById('add-event').onclick = function () {
   document.getElementById('modal').style.display = 'block'; // Afficher la modale
+  populateActivityNames(); // Remplir le menu déroulant avec les activités existantes
 };
 
-// Fermeture de la modale
 document.querySelector('.close').onclick = function () {
   document.getElementById('modal').style.display = 'none'; // Cacher la modale
 };
 
-// Fermer la modale si on clique en dehors
 window.onclick = function (event) {
   if (event.target == document.getElementById('modal')) {
     document.getElementById('modal').style.display = 'none';
   }
 };
 
-// Sauvegarde d'une activité avec gestion de la couleur et ajout du tri par heure de début
+// Sauvegarde d'une activité avec gestion de la couleur et des dates
 document.getElementById('save-event').onclick = function () {
-  const select = document.getElementById('activity-name');
-  const newActivityName = document.getElementById('new-activity-name').value;
+  const activityName = document.getElementById('new-activity-name').value.trim();
+  const selectedExistingActivity = document.getElementById('activity-name-existing').value;
 
-  // Si l'utilisateur a saisi un nouveau nom, on le prend, sinon on prend celui du menu déroulant
-  const activityName = newActivityName !== '' ? newActivityName : select.value;
+  const finalActivityName = activityName !== '' ? activityName : selectedExistingActivity;
 
   const activityStartTime = document.getElementById('activity-time-start').value;
   const activityEndTime = document.getElementById('activity-time-end').value;
   const activityColor = document.getElementById('activity-color').value;
+  const activityStartDate = document.getElementById('activity-start-date').value;
+  const activityEndDate = document.getElementById('activity-end-date').value;
 
-  // Sauvegarde des jours sélectionnés
-  const selectedDays = Array.from(document.querySelectorAll('#activity-days input:checked')).map(input => input.value);
+  if (!finalActivityName || !activityStartTime || !activityEndTime || !activityColor || !activityStartDate || !activityEndDate) {
+    alert("Veuillez remplir tous les champs.");
+    return;
+  }
 
-  // Vérification des champs
-  if (activityName && selectedDays.length && activityStartTime && activityEndTime && activityColor) {
-    let overlapDetected = false;
-    selectedDays.forEach(day => {
-      // Vérification du chevauchement
-      if (hasOverlap(day, activityStartTime, activityEndTime)) {
-        alert(`L'activité pour le ${day} chevauche une autre activité.`);
-        overlapDetected = true;
-        return;
-      }
+  // Ajout d'un nouveau nom d'activité à la liste
+  if (activityName && !activityNames.includes(activityName)) {
+    activityNames.push(activityName);
+    localStorage.setItem('activityNames', JSON.stringify(activityNames));
+  }
+
+  const startDate = new Date(activityStartDate);
+  const endDate = new Date(activityEndDate);
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const formattedDate = currentDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+    if (!activitiesByDate[formattedDate]) {
+      activitiesByDate[formattedDate] = [];
+    }
+
+    activitiesByDate[formattedDate].push({
+      name: finalActivityName,
+      startTime: activityStartTime,
+      endTime: activityEndTime,
+      color: activityColor
     });
 
-    // Si aucun chevauchement n'est détecté, ajouter l'activité
-    if (!overlapDetected) {
-      // Si l'activité est nouvelle, ajouter le nom dans le menu déroulant
-      if (newActivityName && !activityNames.includes(newActivityName)) {
-        activityNames.push(newActivityName);
-        localStorage.setItem('activityNames', JSON.stringify(activityNames));
-        populateActivityNames();
-      }
-
-      selectedDays.forEach(day => {
-        // Ajouter l'activité dans le tableau correspondant au jour
-        activitiesByDay[day].push({
-          name: activityName,
-          startTime: activityStartTime,
-          endTime: activityEndTime,
-          color: activityColor
-        });
-
-        // Trier les activités par heure de début
-        activitiesByDay[day].sort((a, b) => {
-          return a.startTime.localeCompare(b.startTime);
-        });
-
-        // Réafficher les activités triées dans le calendrier
-        displayActivitiesForDay(day);
-      });
-
-      // Sauvegarder dans le LocalStorage
-      localStorage.setItem('activities', JSON.stringify(activitiesByDay));
-
-      // Vider les champs après l'enregistrement
-      document.getElementById('new-activity-name').value = ''; // Réinitialiser le champ de nouveau nom
-      document.getElementById('activity-time-start').value = '';
-      document.getElementById('activity-time-end').value = '';
-      document.querySelectorAll('#activity-days input').forEach(input => input.checked = false);
-      document.getElementById('modal').style.display = 'none'; // Cacher la modale après l'enregistrement
-    }
-  } else {
-    alert("Veuillez remplir tous les champs.");
+    // Avancer d'un jour
+    currentDate.setDate(currentDate.getDate() + 1);
   }
+
+  localStorage.setItem('activitiesByDate', JSON.stringify(activitiesByDate));
+
+  // Vider les champs après l'enregistrement
+  document.getElementById('new-activity-name').value = '';
+  document.getElementById('activity-time-start').value = '';
+  document.getElementById('activity-time-end').value = '';
+  document.getElementById('activity-start-date').value = '';
+  document.getElementById('activity-end-date').value = '';
+  document.getElementById('modal').style.display = 'none';
+
+  // Actualiser l'affichage du calendrier
+  displayWeek(currentWeekOffset); // Actualise la semaine courante après ajout
 };
 
-// Fonction pour démarrer le drag-and-drop
-let draggedActivity = null;
-let draggedDay = null;
+// Fonction pour afficher les activités pour la semaine courante et future
+function displayWeek(weekOffset = 0) {
+  const weekDates = getWeekDates(weekOffset); // Obtenir les dates de la semaine courante avec offset
+  const calendarBody = document.querySelector('.calendar-body');
+  const weekNumber = getWeekNumber(new Date(), weekOffset);
 
-function dragStart(event, day, activity) {
-  draggedActivity = activity;
-  draggedDay = day;
-  event.dataTransfer.setData('text/plain', null); // Nécessaire pour le drag-and-drop dans certains navigateurs
-}
+  calendarBody.innerHTML = ''; // Vider l'ancien contenu
+  document.getElementById('week-number').textContent = `Semaine ${weekNumber}`;
 
-document.querySelectorAll('.day').forEach(dayElement => {
-  const day = dayElement.dataset.day;
+  weekDates.forEach(date => {
+    const dayElement = document.createElement('div');
+    dayElement.classList.add('day');
+    dayElement.dataset.date = date.toISOString().split('T')[0]; // Format YYYY-MM-DD
 
-  dayElement.addEventListener('dragover', function (event) {
-    event.preventDefault();
-  });
+    // Afficher la date dans le header correctement
+    const formattedDate = date.toISOString().split('T')[0];
+    const header = document.querySelector(`.calendar-header div:nth-child(${(date.getDay() || 7)})`);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    header.textContent = `${header.textContent.split(' ')[0]} ${day}/${month}`;
 
-  dayElement.addEventListener('drop', function (event) {
-    event.preventDefault();
-    if (draggedActivity) {
-      const activityStartTime = draggedActivity.startTime;
-      const activityEndTime = draggedActivity.endTime;
+    if (activitiesByDate[formattedDate]) {
+      activitiesByDate[formattedDate].forEach((activity, index) => {
+        const activityDiv = document.createElement('div');
+        activityDiv.textContent = `${activity.name} de ${activity.startTime} à ${activity.endTime}`;
+        activityDiv.style.backgroundColor = activity.color;
+        activityDiv.classList.add('activity');
 
-      // Vérification des chevauchements dans le jour cible
-      if (hasOverlap(day, activityStartTime, activityEndTime, draggedActivity)) {
-        alert("Cette activité chevauche une autre activité sur ce jour.");
-        return; // Empêche le déplacement si chevauchement
-      }
+        // Ajout du bouton "Démarrer"
+        const startButton = document.createElement('button');
+        startButton.textContent = 'Démarrer';
+        startButton.onclick = function () {
+          startTimer(activity, formattedDate, index);
+        };
 
-      // Retirer l'activité de la journée d'origine
-      activitiesByDay[draggedDay] = activitiesByDay[draggedDay].filter(a => a !== draggedActivity);
+        // Ajout du bouton "Supprimer"
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'X';
+        deleteButton.classList.add('delete-button');
+        deleteButton.onclick = function () {
+          deleteActivity(formattedDate, index);
+        };
 
-      // Ajouter l'activité à la nouvelle journée
-      activitiesByDay[day].push(draggedActivity);
-
-      // Trier les activités dans la nouvelle journée
-      activitiesByDay[day].sort((a, b) => {
-        return a.startTime.localeCompare(b.startTime);
+        // Ajouter les boutons à l'activité
+        activityDiv.appendChild(startButton);
+        activityDiv.appendChild(deleteButton);
+        dayElement.appendChild(activityDiv);
       });
-
-      // Réafficher les activités pour les deux jours
-      displayActivitiesForDay(draggedDay);
-      displayActivitiesForDay(day);
-
-      // Sauvegarder dans le LocalStorage après le drag-and-drop
-      localStorage.setItem('activities', JSON.stringify(activitiesByDay));
-
-      // Réinitialiser le drag
-      draggedActivity = null;
-      draggedDay = null;
     }
-  });
-});
 
-// Fonction pour afficher les activités d'un jour dans l'ordre
-function displayActivitiesForDay(day) {
-  const dayElement = document.querySelector(`.day[data-day=${day}]`);
-  dayElement.innerHTML = ''; // Vider le contenu actuel
-
-  // Ajouter chaque activité triée dans l'élément correspondant
-  activitiesByDay[day].forEach(activity => {
-    const activityDiv = document.createElement('div');
-    activityDiv.textContent = `${activity.name} de ${activity.startTime} à ${activity.endTime}`;
-    activityDiv.style.backgroundColor = activity.color;
-    activityDiv.classList.add('activity');
-    activityDiv.setAttribute('draggable', true);
-
-    // Ajout de la gestion du drag-and-drop
-    activityDiv.addEventListener('dragstart', function (event) {
-      dragStart(event, day, activity);
-    });
-    dayElement.appendChild(activityDiv);
+    calendarBody.appendChild(dayElement);
   });
 }
 
-// Fonction pour obtenir le numéro de la semaine
-function getWeekNumber(d) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-}
-
-// Fonction pour générer les dates de la semaine courante
-function getWeekDates() {
+// Fonction pour obtenir les dates de la semaine courante ou future
+function getWeekDates(weekOffset = 0) {
   const currentDate = new Date();
-  const currentDay = currentDate.getDay() || 7; // Lundi = 1, Dimanche = 7
+  currentDate.setDate(currentDate.getDate() + (weekOffset * 7)); // Décale la semaine si nécessaire
+  const currentDay = currentDate.getDay() || 7; // Dimanche = 0, donc on utilise 7
   const monday = new Date(currentDate);
-  monday.setDate(currentDate.getDate() - currentDay + 1);
+  monday.setDate(currentDate.getDate() - currentDay + 1); // Corriger le décalage des dates
 
   const weekDates = [];
   for (let i = 0; i < 7; i++) {
@@ -228,22 +165,120 @@ function getWeekDates() {
   return weekDates;
 }
 
-// Affichage des jours avec date et numéro de semaine
-function displayWeek() {
-  const weekDates = getWeekDates();
-  const weekNumber = getWeekNumber(new Date());
+// Gestion du Timer avec pause et reprise
+function startTimer(activity, date, index) {
+  clearInterval(timerInterval);
 
-  // Affichage du numéro de semaine
-  document.getElementById('week-number').textContent = `Semaine ${weekNumber}`;
+  const now = new Date(); // Heure actuelle
+  const startTime = new Date(); // Début réel de l'activité
+  const endTime = new Date(); // Fin de l'activité
 
-  // Affichage des dates dans le calendrier
-  document.querySelectorAll('.calendar-header div').forEach((header, index) => {
-    const date = weekDates[index];
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    header.textContent = `${header.textContent.split(' ')[0]} ${day}/${month}`;
-  });
+  const [startHour, startMinute] = activity.startTime.split(':');
+  const [endHour, endMinute] = activity.endTime.split(':');
+
+  startTime.setHours(parseInt(startHour), parseInt(startMinute), 0, 0);
+  endTime.setHours(parseInt(endHour), parseInt(endMinute), 0, 0);
+
+  if (endTime <= startTime) {
+    endTime.setDate(endTime.getDate() + 1); // Gestion des activités qui se terminent après minuit
+  }
+
+  timeRemaining = endTime - now;
+
+  if (isNaN(timeRemaining) || timeRemaining <= 0) {
+    alert("L'activité est déjà terminée ou a une durée incorrecte !");
+    deleteActivity(date, index);
+    return;
+  }
+
+  const originalDuration = endTime - startTime; // Durée programmée
+  const actualStartTime = new Date(); // Moment où l'utilisateur commence l'activité
+
+  showTimer(timeRemaining);
+
+  timerInterval = setInterval(() => {
+    timeRemaining -= 1000;
+
+    if (timeRemaining <= 0) {
+      clearInterval(timerInterval);
+      const actualEndTime = new Date();
+      const timeSpent = actualEndTime - actualStartTime; // Temps réellement passé
+
+      // Sauvegarde dans le tableau des logs
+      activityLogs.push({
+        name: activity.name,
+        originalDuration: originalDuration,
+        timeSpent: timeSpent
+      });
+
+      // Met à jour le LocalStorage
+      localStorage.setItem('activityLogs', JSON.stringify(activityLogs));
+
+      alert(`L'activité "${activity.name}" est terminée !`);
+      playSound();
+      deleteActivity(date, index);
+    } else {
+      showTimer(timeRemaining);
+    }
+  }, 1000);
 }
 
-// Appeler la fonction pour afficher la semaine au chargement
-displayWeek();
+// Fonction pour afficher le timer
+function showTimer(timeRemaining) {
+  const timerDisplay = document.getElementById('timer-display');
+
+  if (!timerDisplay) {
+    const newTimerDisplay = document.createElement('div');
+    newTimerDisplay.id = 'timer-display';
+    document.body.appendChild(newTimerDisplay);
+  }
+
+  const hours = Math.floor((timeRemaining / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((timeRemaining / (1000 * 60)) % 60);
+  const seconds = Math.floor((timeRemaining / 1000) % 60);
+  document.getElementById('timer-display').textContent = `${hours}h ${minutes}m ${seconds}s`;
+}
+
+// Fonction pour supprimer une activité
+function deleteActivity(date, index) {
+  activitiesByDate[date].splice(index, 1);
+  localStorage.setItem('activitiesByDate', JSON.stringify(activitiesByDate));
+  displayWeek(currentWeekOffset); // Actualise l'affichage après suppression
+}
+
+function playSound() {
+  const audio = new Audio('path/to/sound.mp3');
+  audio.play();
+}
+
+// Afficher le numéro de la semaine avec offset
+function displayWeekNumber(weekOffset = 0) {
+  const weekNumber = getWeekNumber(new Date(), weekOffset);
+  document.getElementById('week-number').textContent = `Semaine ${weekNumber}`;
+}
+
+// Calculer le numéro de la semaine avec offset
+function getWeekNumber(date, weekOffset = 0) {
+  const adjustedDate = new Date(date);
+  adjustedDate.setDate(adjustedDate.getDate() + (weekOffset * 7)); // Ajuster la date pour la semaine future
+  const firstDayOfYear = new Date(adjustedDate.getFullYear(), 0, 1);
+  const pastDaysOfYear = (adjustedDate - firstDayOfYear) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+}
+
+// Initialiser l'affichage de la semaine courante
+displayWeekNumber(currentWeekOffset);
+displayWeek(currentWeekOffset);
+
+// Navigation entre semaines
+document.getElementById('next-week').addEventListener('click', () => {
+  currentWeekOffset++;
+  displayWeek(currentWeekOffset); // Affiche la semaine suivante
+  displayWeekNumber(currentWeekOffset); // Met à jour le numéro de semaine
+});
+
+document.getElementById('previous-week').addEventListener('click', () => {
+  currentWeekOffset--;
+  displayWeek(currentWeekOffset); // Affiche la semaine précédente
+  displayWeekNumber(currentWeekOffset); // Met à jour le numéro de semaine
+});

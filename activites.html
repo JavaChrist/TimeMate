@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau des Activités</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Activités et Temps Réel Passé</h1>
+    <button onclick="location.href='index.html'">Retour au calendrier</button>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nom de l'activité</th>
+                <th>Temps Programmé</th>
+                <th>Temps Réel Passé</th>
+            </tr>
+        </thead>
+        <tbody id="activities-log">
+            <!-- Les activités terminées seront ajoutées ici -->
+        </tbody>
+    </table>
+
+    <script src="activities.js"></script>
+</body>
+</html>
